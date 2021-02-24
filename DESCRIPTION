@@ -16,4 +16,4 @@ RoxygenNote: 7.1.1
 Imports: 
     mclust,
     shapes,
-    glasso
+    glassoFast

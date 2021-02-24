@@ -148,26 +148,23 @@ fit_penalized_clust <-
         }
       }
 
-      # set initial covariance/precision matrix for glasso - ensure monotonicity
-      if (iter < 1) {
-        start <- "cold"
-        start_sigma <- temp$S
-        start_omega <- omega_0
-      } else {
-        start <- "warm"
-        start_sigma <- sigma
-        start_omega <- omega
-      }
+      # # set initial covariance/precision matrix for glasso - ensure monotonicity
+      # if (iter < 1) {
+      #   start <- "cold"
+      #   start_sigma <- temp$S
+      #   start_omega <- omega_0
+      # } else {
+      #   start <- "warm"
+      #   start_sigma <- sigma
+      #   start_omega <- omega
+      # }
 
       if (any(lambda_omega != 0)) {
         for (k in 1:K) {
           # graphical lasso estimation
-          gl <- glasso::glasso(
-            s=temp$S[, , k],
-            rho = 2 * lambda_omega * P_k[, , k] / nk[k],
-            start = start,
-            w.init = start_sigma[, , k],
-            wi.init = start_omega[, , k]
+          gl <- glassoFast::glassoFast(
+            S=temp$S[, , k],
+            rho = 2 * lambda_omega * P_k[, , k] / nk[k]
           )
           sigma[, , k] <- gl$w
           omega[, , k] <- gl$wi
