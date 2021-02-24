@@ -1,0 +1,27 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# sparsemix
+This repository is associated with the paper: Casa, Cappozzo, Fop (2021) *On the group-wise shrinkage for multiclass Gaussian Graphical Models*. It provides an R package for implementing penalized model-based clustering with sparse mean vectors and precision matrices. 
+
+
+## Installation
+
+You can install the development version from [GitHub](https://github.com/) with:
+
+``` r
+# install.packages("remotes")
+remotes::install_github("AndreaCappozzo/sparsemix")
+```
