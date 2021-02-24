@@ -138,6 +138,12 @@ fit_penalized_clust <-
                 (nk[k] * omega[j, j, k])
             }
           }
+
+          all_zeros <- apply(mu, 2, function(mu_g) all(mu_g == 0))
+
+          if (any(all_zeros)) {
+            warning("An entire mean component vector was shrunk to 0: consider decreasing lambda_mu")
+          }
           penalty_mu[k] <- sum(abs(lambda_mu * mu[, k]))
         }
       }
