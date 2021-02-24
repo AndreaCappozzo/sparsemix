@@ -4,6 +4,7 @@
 # - "common": Zhou2009 model
 # - "weighted_by_W0": 1/omega_k^(0) used as P_k
 # - "weighted_by_dist_to_I": distance bw omega_k^(0) and diagonal matrix used as P_k (all elements of P_k are equal in this case)
+# - "weighted_by_dist_to_diag_W0": distance bw omega_k^(0) and diagonal W0 used as P_k (all elements of P_k are equal in this case)
 # - "weighted_by_cellwise_dist_to_I": cellwise distance bw omega_k^(0) and diagonal matrix used as P_k
 #' @export
 fit_penalized_clust <-
@@ -31,12 +32,17 @@ fit_penalized_clust <-
     #### EM ######################################################################
 
 
-    if(length(lambda_mu)==1){
+    if(length(lambda_mu)==1) {
       lambda_mu <- rep(lambda_mu, p)
     }
-    if (!is.matrix(lambda_omega))
+
+    if (!is.matrix(lambda_omega)) {
       lambda_omega <- matrix(lambda_omega, nrow = p, ncol = p)
-    if (penalize_diag == FALSE) diag(lambda_omega) <- 0
+    }
+
+    if (penalize_diag == FALSE) {
+      diag(lambda_omega) <- 0
+    }
 
     # intialization of cluster allocation
     if(is.null(initialization)){
@@ -47,21 +53,24 @@ fit_penalized_clust <-
     }
 
     temp <- mclust::covw(data, z, normalize = FALSE)
+    omega_0 <- array(apply(temp$S, 3, solve),dim = c(p,p,K))
 
     ######## I set the group-wise penalization via P_k
 
     P_k <- switch (
       group_shrinkage,
       "common" = array(1, dim = c(p, p, K)),
-      "weighted_by_W0" = 1 / abs(temp$W),
+      "weighted_by_W0" = 1 / abs(omega_0),
       "weighted_by_dist_to_I" = 1 / array(data = rep(
-        apply(temp$W, 3, function(omega)
+        apply(omega_0, 3, function(omega)
           shapes::distcov(S1 = omega, S2 = diag(p), method = "Riemannian")), each =p ^ 2),
         dim = c(p, p, K)), # I use Riemannian metric, but since PD space is non-euclidian any distance in Dryden2009 can be employed
-      "weighted_by_cellwise_dist_to_I" = 1/array(apply(temp$W, 3, function(omega)
-        abs(omega - diag(
-          p
-        ))), dim = c(p, p, K))
+      "weighted_by_dist_to_diag_W0" = 1 / array(data = rep(
+        apply(omega_0, 3, function(omega)
+          shapes::distcov(S1 = omega, S2 = diag(diag(omega)), method = "Riemannian")), each =p ^ 2),
+        dim = c(p, p, K)), # I use Riemannian metric, but since PD space is non-euclidian any distance in Dryden2009 can be employed
+      "weighted_by_cellwise_dist_to_I" = 1/array(apply(omega_0, 3, function(omega)
+        abs(omega - diag(p))), dim = c(p, p, K))
     )
 
     # start EM parameters and containers
@@ -75,18 +84,18 @@ fit_penalized_clust <-
     loglik_pen_vec <- NULL
     penalty <- penalty_mu <- rep(0, K)
     mu <- matrix(NA, p, K)
-    sigma <- omega <- array(NA, c(p, p, K))
+    sigma <- array(NA, c(p, p, K))
 
-    for (k in 1:K) {
-      omega[, , k] <- temp$W[, , k] # starting value for omega
-    }
+    omega <- omega_0
 
     # dimnames(sigma) <- dimnames(omega) <- list(varnames, varnames)
     crit <- TRUE
 
 
-    # run EM
+    # ME algorithm
+
     while (crit) {
+
       #### M step -------------------------------------------------
       nk <- colSums(z)
       pro <- nk / N
@@ -137,7 +146,7 @@ fit_penalized_clust <-
       if (iter < 1) {
         start <- "cold"
         start_sigma <- temp$S
-        start_omega <- array(apply(temp$S, 3, solve), c(p, p, K))
+        start_omega <- omega_0
       } else {
         start <- "warm"
         start_sigma <- sigma
@@ -148,7 +157,7 @@ fit_penalized_clust <-
         for (k in 1:K) {
           # graphical lasso estimation
           gl <- glasso::glasso(
-            temp$S[, , k],
+            s=temp$S[, , k],
             rho = 2 * lambda_omega * P_k[, , k] / nk[k],
             start = start,
             w.init = start_sigma[, , k],
@@ -161,22 +170,21 @@ fit_penalized_clust <-
         }
       } else {
         sigma <- temp$S
-        omega <- temp$W
+        omega <- array(apply(temp$S, 3, solve), c(p, p, K))
       }
 
-      ####---------------------------------------------------------
-
       #### E step -------------------------------------------------
+
       dens <- matrix(NA, N, K)
-      for (k in 1:K)
+      for (k in 1:K){
         dens[, k] <- mclust::dmvnorm(data, mu[, k], sigma[, , k], log = TRUE)
+        }
       denspro <- sweep(dens, 2, log(pro), "+")
 
       # zetas
       zMax <- apply(denspro, 1, max)
       loghood <- zMax + log(rowSums(exp(denspro - zMax)))
       z <- exp(denspro - loghood)
-      ####---------------------------------------------------------
 
       #### loglik -------------------------------------------------
       loglik <- sum(loghood)
