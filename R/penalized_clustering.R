@@ -1,3 +1,11 @@
+
+# Function for fitting penalized MBC models \citep{Zhou2009}, with groupwise penalizations---------------------
+# the penalization type is set via the group_shrinkage function argument:
+# - "common": Zhou2009 model
+# - "weighted_by_W0": 1/omega_k^(0) used as P_k
+# - "weighted_by_dist_to_I": distance bw omega_k^(0) and diagonal matrix used as P_k (all elements of P_k are equal in this case)
+# - "weighted_by_cellwise_dist_to_I": cellwise distance bw omega_k^(0) and diagonal matrix used as P_k
+#' @export
 fit_penalized_clust <-
   function(data,
            K,
@@ -32,13 +40,13 @@ fit_penalized_clust <-
 
     # intialization of cluster allocation
     if(is.null(initialization)){
-      hc_init <- hc(data, modelName = "VVV", use = "SVD")
-      z <- unmap(hclass(hc_init, K))
+      hc_init <- mclust::hc(data, modelName = "VVV", use = "SVD")
+      z <- mclust::unmap(mclust::hclass(hc_init, K))
     } else {
       z <- mclust::unmap(initialization)
     }
 
-    temp <- covw(data, z, normalize = FALSE)
+    temp <- mclust::covw(data, z, normalize = FALSE)
 
     ######## I set the group-wise penalization via P_k
 
@@ -66,8 +74,8 @@ fit_penalized_clust <-
     loglik_pen <- loglik_pen_prev <- -.Machine$integer.max / 2
     loglik_pen_vec <- NULL
     penalty <- penalty_mu <- rep(0, K)
-    mu <- matrix(NA, V, K)
-    sigma <- omega <- array(NA, c(V, V, K))
+    mu <- matrix(NA, p, K)
+    sigma <- omega <- array(NA, c(p, p, K))
 
     for (k in 1:K) {
       omega[, , k] <- temp$W[, , k] # starting value for omega
@@ -84,7 +92,7 @@ fit_penalized_clust <-
       pro <- nk / N
 
       if(iter!=0){ # I do not do this the first iteration as I have already computed it outside the while loop
-        temp <- covw(data, z)  # compute weighted quantities
+        temp <- mclust::covw(data, z)  # compute weighted quantities
       }
 
 
@@ -129,7 +137,7 @@ fit_penalized_clust <-
       if (iter < 1) {
         start <- "cold"
         start_sigma <- temp$S
-        start_omega <- array(apply(temp$S, 3, solve), c(V, V, K))
+        start_omega <- array(apply(temp$S, 3, solve), c(p, p, K))
       } else {
         start <- "warm"
         start_sigma <- sigma
@@ -139,7 +147,7 @@ fit_penalized_clust <-
       if (any(lambda_omega != 0)) {
         for (k in 1:K) {
           # graphical lasso estimation
-          gl <- glasso(
+          gl <- glasso::glasso(
             temp$S[, , k],
             rho = 2 * lambda_omega * P_k[, , k] / nk[k],
             start = start,
@@ -161,7 +169,7 @@ fit_penalized_clust <-
       #### E step -------------------------------------------------
       dens <- matrix(NA, N, K)
       for (k in 1:K)
-        dens[, k] <- mclust:::dmvnorm(data, mu[, k], sigma[, , k], log = TRUE)
+        dens[, k] <- mclust::dmvnorm(data, mu[, k], sigma[, , k], log = TRUE)
       denspro <- sweep(dens, 2, log(pro), "+")
 
       # zetas
