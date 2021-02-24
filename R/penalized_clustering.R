@@ -101,7 +101,7 @@ fit_penalized_clust <-
       pro <- nk / N
 
       if(iter!=0){ # I do not do this the first iteration as I have already computed it outside the while loop
-        temp <- mclust::covw(data, z)  # compute weighted quantities
+        temp <- mclust::covw(data, z, normalize=FALSE)  # compute weighted quantities
       }
 
 
