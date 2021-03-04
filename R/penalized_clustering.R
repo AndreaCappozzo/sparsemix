@@ -5,7 +5,8 @@
 # - "weighted_by_W0": 1/omega_k^(0) used as P_k
 # - "weighted_by_dist_to_I": distance bw omega_k^(0) and diagonal matrix used as P_k (all elements of P_k are equal in this case)
 # - "weighted_by_dist_to_diag_W0": distance bw omega_k^(0) and diagonal W0 used as P_k (all elements of P_k are equal in this case)
-# - "weighted_by_cellwise_dist_to_I": cellwise distance bw omega_k^(0) and diagonal matrix used as P_k
+# - for the last two group_shrinkage type, given that the PD space is non-Euclidian, several distances may be considered, controlled with the argument
+# distance_method=c("Procrustes","ProcrustesShape","Riemannian","Cholesky", "Euclidean", "LogEuclidean", "RiemannianLe"). See Dryden 2009 AOAS for a full account on the problem.
 #' @export
 fit_penalized_clust <-
   function(data,
@@ -17,8 +18,9 @@ fit_penalized_clust <-
              "common",
              "weighted_by_W0",
              "weighted_by_dist_to_I",
-             "weighted_by_cellwise_dist_to_I"
+             "weighted_by_dist_to_diag_W0",
            ),
+           distance_method="Euclidean", # used in "weighted_by_dist_to_I" and "weighted_by_dist_to_diag_W0" only
            initialization=NULL,
            control_EM_algorithm =control_EM()
   ) {
@@ -63,14 +65,12 @@ fit_penalized_clust <-
       "weighted_by_W0" = 1 / abs(omega_0),
       "weighted_by_dist_to_I" = 1 / array(data = rep(
         apply(omega_0, 3, function(omega)
-          shapes::distcov(S1 = omega, S2 = diag(p), method = "Riemannian")), each =p ^ 2),
-        dim = c(p, p, K)), # I use Riemannian metric, but since PD space is non-euclidian any distance in Dryden2009 can be employed
+          shapes::distcov(S1 = omega, S2 = diag(p), method = distance_method)), each =p ^ 2),
+        dim = c(p, p, K)),
       "weighted_by_dist_to_diag_W0" = 1 / array(data = rep(
         apply(omega_0, 3, function(omega)
-          shapes::distcov(S1 = omega, S2 = diag(diag(omega)), method = "Riemannian")), each =p ^ 2),
-        dim = c(p, p, K)), # I use Riemannian metric, but since PD space is non-euclidian any distance in Dryden2009 can be employed
-      "weighted_by_cellwise_dist_to_I" = 1/array(apply(omega_0, 3, function(omega)
-        abs(omega - diag(p))), dim = c(p, p, K))
+          shapes::distcov(S1 = omega, S2 = diag(diag(omega)), method = distance_method)), each =p ^ 2),
+        dim = c(p, p, K))
     )
 
     # start EM parameters and containers
