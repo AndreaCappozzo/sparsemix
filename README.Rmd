@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
 ```
 
 # sparsemix
-This repository is associated with the paper: Casa, Cappozzo, Fop (2021) *On the group-wise shrinkage for multiclass Gaussian Graphical Models*. It provides an R package for implementing penalized model-based clustering with sparse mean vectors and precision matrices. 
+This repository is associated with the paper: Casa, Cappozzo, Fop (2021) *Group-wise shrinkage for multiclass Gaussian Graphical Models*. It provides an R package for implementing penalized model-based clustering with sparse mean vectors and precision matrices. 
 
 
 ## Installation
