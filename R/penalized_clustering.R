@@ -22,6 +22,7 @@ fit_penalized_clust <-
            ),
            distance_method="Euclidean", # used in "weighted_by_dist_to_I" and "weighted_by_dist_to_diag_W0" only
            initialization=NULL,
+           lambda_omega_0=50, # when the dimensionality is high, Omega_0 might be singular, so we use glasso with penalty equal lambda_omega_0 to start the procedure
            control_EM_algorithm =control_EM()
   ) {
 
@@ -42,8 +43,13 @@ fit_penalized_clust <-
       lambda_omega <- matrix(lambda_omega, nrow = p, ncol = p)
     }
 
+    if (!is.matrix(lambda_omega_0)) {
+      lambda_omega_0 <- matrix(lambda_omega_0, nrow = p, ncol = p)
+    }
+
     if (penalize_diag == FALSE) {
       diag(lambda_omega) <- 0
+      diag(lambda_omega_0) <- 0
     }
 
     # intialization of cluster allocation
@@ -55,14 +61,36 @@ fit_penalized_clust <-
     }
 
     temp <- mclust::covw(data, z, normalize = FALSE)
-    omega_0 <- array(apply(temp$S, 3, solve),dim = c(p,p,K))
 
+    # Check if I have issues in the initial estimation of S
+    determinant_S <- apply(temp$S, 3, function(X)
+      determinant(X))
+    log_det_S <- sapply(determinant_S, FUN = "[[", 1)
+    sign_det_S <- sapply(determinant_S, FUN = "[[", 2)
+
+    singularity_problem <-
+      (any(sign_det_S<0))|any(log_det_S<log(.Machine$double.neg.eps)) # I check if the matrices temp$S are invertible
+
+    if (!singularity_problem) {
+      # if temp$S are invertible, then I compute the Omega_0 as the inverse of S_0
+      omega_0 <- array(apply(temp$S, 3, solve), dim = c(p, p, K))
+    } else{
+      # if temp$S are singular, I use graphical lasso to compute the initial estimates
+      omega_0 <- array(dim = c(p, p, K))
+      nk <- colSums(z)
+      for (k in 1:K) {
+        # graphical lasso estimation
+        gl <- glassoFast::glassoFast(S = temp$S[, , k],
+                                     rho = 2 * lambda_omega_0 / nk[k])
+        omega_0[, , k] <- gl$wi
+      }
+    }
     ######## I set the group-wise penalization via P_k
 
     P_k <- switch (
       group_shrinkage,
       "common" = array(1, dim = c(p, p, K)),
-      "weighted_by_W0" = 1 / abs(omega_0),
+      "weighted_by_W0" = 1 / (1+abs(omega_0)),
       "weighted_by_dist_to_I" = 1 / array(data = rep(
         apply(omega_0, 3, function(omega)
           shapes::distcov(S1 = omega, S2 = diag(p), method = distance_method)), each =p ^ 2),
