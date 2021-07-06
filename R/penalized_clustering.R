@@ -23,6 +23,7 @@ fit_penalized_clust <-
            distance_method="Euclidean", # used in "weighted_by_dist_to_I" and "weighted_by_dist_to_diag_W0" only
            initialization=NULL,
            lambda_omega_0=50, # when the dimensionality is high, Omega_0 might be singular, so we use glasso with penalty equal lambda_omega_0 to start the procedure
+           epsilon_weighted_by_W0 = sqrt(.Machine$double.eps), # the denominator of formula (6)
            control_EM_algorithm =control_EM()
   ) {
 
@@ -90,7 +91,7 @@ fit_penalized_clust <-
     P_k <- switch (
       group_shrinkage,
       "common" = array(1, dim = c(p, p, K)),
-      "weighted_by_W0" = 1 / (1+abs(omega_0)),
+      "weighted_by_W0" = 1 / (epsilon_weighted_by_W0+abs(omega_0)),
       "weighted_by_dist_to_I" = 1 / array(data = rep(
         apply(omega_0, 3, function(omega)
           shapes::distcov(S1 = omega, S2 = diag(p), method = distance_method)), each =p ^ 2),
