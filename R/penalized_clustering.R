@@ -89,10 +89,11 @@ fit_penalized_clust <-
       }
     }
 
-    max_bic_model <-
-      which.max(sapply(models_container, "[[", "bic"))
+    models_BICS <- sapply(models_container, "[[", "bic")
+    max_bic_model <- which.max(models_BICS)
 
     selected_model <- models_container[[max_bic_model]]
+    selected_model$BIC <- cbind(all_hyperparameters, bic=models_BICS)
 
     if (verbose) {
       cat(
@@ -102,7 +103,8 @@ fit_penalized_clust <-
         all_hyperparameters[max_bic_model, "lambda_omega"],
         ", lambda_mu=",
         all_hyperparameters[max_bic_model, "lambda_mu"],
-        " returns the highest BIC.",sep = ""
+        " returns the highest BIC.",
+        sep = ""
       )
     }
     selected_model
