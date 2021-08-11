@@ -54,26 +54,32 @@ fit_single_parameters_set <-
     temp <- mclust::covw(data, z, normalize = FALSE)
 
     # Check if I have issues in the initial estimation of S
-    determinant_S <- apply(temp$S, 3, function(X)
-      determinant(X))
-    log_det_S <- sapply(determinant_S, FUN = "[[", 1)
-    sign_det_S <- sapply(determinant_S, FUN = "[[", 2)
-
-    singularity_problem <-
-      (any(sign_det_S<0))|any(log_det_S<log(.Machine$double.neg.eps)) # I check if the matrices temp$S are invertible
+    # determinant_S <- apply(temp$S, 3, function(X)
+    #   determinant(X))
+    # log_det_S <- sapply(determinant_S, FUN = "[[", 1)
+    # sign_det_S <- sapply(determinant_S, FUN = "[[", 2)
+    #
+    # singularity_problem <-
+    #   (any(sign_det_S<0))|any(log_det_S<log(.Machine$double.neg.eps)) # I check if the matrices temp$S are invertible
+    #
+    # alternative
+    eig <- sapply(1:K, function(k) eigen(temp$S[,,k], only.values = TRUE)$val)
+    singularity_problem <- any(eig < .Machine$double.eps)
 
     if (!singularity_problem) {
       # if temp$S are invertible, then I compute the Omega_0 as the inverse of S_0
       omega_0 <- array(apply(temp$S, 3, solve), dim = c(p, p, K))
+      sigma_0 <- temp$S
     } else{
       # if temp$S are singular, I use graphical lasso to compute the initial estimates
-      omega_0 <- array(dim = c(p, p, K))
+      omega_0 <- sigma_0 <- array(dim = c(p, p, K))
       nk <- colSums(z)
       for (k in 1:K) {
         # graphical lasso estimation
         gl <- glassoFast::glassoFast(S = temp$S[, , k],
                                      rho = 2 * lambda_omega_0 / nk[k])
         omega_0[, , k] <- gl$wi
+        sigma_0[, , k] <- gl$w
       }
     }
     ######## I set the group-wise penalization via P_k
@@ -81,7 +87,7 @@ fit_single_parameters_set <-
     P_k <- switch (
       group_shrinkage,
       "common" = array(1, dim = c(p, p, K)),
-      "weighted_by_W0" = 1 / (epsilon_weighted_by_W0+abs(omega_0)),
+      "weighted_by_W0" = 1 / (epsilon_weighted_by_W0 + abs(omega_0)),
       "weighted_by_dist_to_I" = 1 / array(data = rep(
         apply(omega_0, 3, function(omega)
           shapes::distcov(S1 = omega, S2 = diag(p), method = distance_method)), each =p ^ 2),
@@ -103,13 +109,16 @@ fit_single_parameters_set <-
     loglik_pen_vec <- NULL
     penalty <- penalty_mu <- rep(0, K)
     mu <- matrix(NA, p, K)
-    sigma <- array(NA, c(p, p, K))
 
+    # start omega and sigma
     omega <- omega_0
+    sigma <- sigma_0
+
 
     # dimnames(sigma) <- dimnames(omega) <- list(varnames, varnames)
     crit <- TRUE
-
+    z_prev <- z
+    to_break <- FALSE
 
     # ME algorithm
 
@@ -119,10 +128,9 @@ fit_single_parameters_set <-
       nk <- colSums(z)
       pro <- nk / N
 
-      if(iter!=0){ # I do not do this the first iteration as I have already computed it outside the while loop
+      if(iter != 0){ # I do not do this the first iteration as I have already computed it outside the while loop
         temp <- mclust::covw(data, z, normalize=FALSE)  # compute weighted quantities
       }
-
 
       mu <- temp$mean    # sample mean
 
@@ -167,24 +175,29 @@ fit_single_parameters_set <-
         }
       }
 
-      # # set initial covariance/precision matrix for glasso - ensure monotonicity
-      # if (iter < 1) {
-      #   start <- "cold"
-      #   start_sigma <- temp$S
-      #   start_omega <- omega_0
-      # } else {
-      #   start <- "warm"
-      #   start_sigma <- sigma
-      #   start_omega <- omega
-      # }
-
-      if (any(lambda_omega != 0)) {
+      if ( any(lambda_omega != 0) ) {
         for (k in 1:K) {
           # graphical lasso estimation
-          gl <- glassoFast::glassoFast(
-            S=temp$S[, , k],
-            rho = 2 * lambda_omega * P_k[, , k] / nk[k]
-          )
+          # gl <- glassoFast::glassoFast(
+          #   S=temp$S[, , k],
+          #   rho = 2 * lambda_omega * P_k[, , k] / nk[k]
+          # )
+
+          gl <- try(glassoFast::glassoFast(S = temp$S[,,k],
+                                           rho = 2 * lambda_omega * P_k[, , k] / nk[k],
+                                           start = "warm",
+                                           wi.init = omega[,,k],
+                                           w.init = sigma[, , k]), silent = TRUE)
+          if ( class(gl) == "try-error" | any(is.nan(gl$wi)) ) {
+            gl <- glassoFast::glassoFast(S = temp$S[,,k],
+                                         rho = 2 * lambda_omega * P_k[, , k] / nk[k])
+          }
+
+          if( any( diag(gl$w) < sqrt(.Machine$double.eps) ) ) {
+            to_break <- TRUE
+            break
+          }
+
           sigma[, , k] <- gl$w
           omega[, , k] <- gl$wi
           penalty[k] <-
@@ -194,6 +207,50 @@ fit_single_parameters_set <-
         sigma <- temp$S
         omega <- array(apply(temp$S, 3, solve), c(p, p, K))
       }
+
+
+      # check for near zero variance and break
+      if ( to_break ) {
+        if ( iter != 0 ) {
+
+          nk <- colSums(z_prev)
+          pro <- nk / N
+          temp <- mclust::covw(data, z_prev, normalize = FALSE)
+          mu <- temp$mean
+          # TODO: fix mean estimation to account for sparsity
+
+          if (any(lambda_omega != 0)) {
+
+            for (k in 1:K) {
+              gl <- try(glassoFast::glassoFast(S = temp$S[,,k],
+                                               rho = 2 * lambda_omega * P_k[, , k] / nk[k],
+                                               start = "warm",
+                                               wi.init = omega[,,k],
+                                               w.init = sigma[, , k]), silent = TRUE)
+              if ( class(gl) == "try-error" | any(is.nan(gl$wi)) ) {
+                gl <- glassoFast::glassoFast(S = temp$S[,,k],
+                                             rho = 2 * lambda_omega * P_k[, , k] / nk[k])
+              }
+
+              sigma[, , k] <- gl$w
+              omega[, , k] <- gl$wi
+              penalty[k] <-
+                sum(abs(lambda_omega * P_k[, , k] * omega[, , k]))
+            }
+          } else {
+            sigma <- temp$S
+            omega <- array(apply(temp$S, 3, solve), c(p, p, K))
+          }
+
+        } else {
+          OUT <- list(loglik = NA, loglik_pen = NA, parameters = NA, z = z, K = K, classification = NA,
+                      bic = NA, n_params = NA, penalty = list(lambda_mu = lambda_mu, lambda_omega = lambda_omega, P_k = P_k),
+                      LLK_trace = NA, iter = iter)
+
+          return( OUT )
+        }
+      }
+
 
       #### E step -------------------------------------------------
 
@@ -206,6 +263,7 @@ fit_single_parameters_set <-
       # zetas
       zMax <- apply(denspro, 1, max)
       loghood <- zMax + log(rowSums(exp(denspro - zMax)))
+      z_prev <- z
       z <- exp(denspro - loghood)
 
       #### loglik -------------------------------------------------
@@ -218,7 +276,7 @@ fit_single_parameters_set <-
       loglik_pen_vec <- c(loglik_pen_vec, loglik_pen)
       iter <- iter + 1
 
-      crit <- (err > tol & iter < itermax)
+      crit <- if (to_break) FALSE else (err > tol & iter < itermax)
       #------------------------------------------------------------
     }
 
@@ -247,5 +305,6 @@ fit_single_parameters_set <-
         LLK_trace = loglik_pen_vec,
         iter = iter
       )
-    OUT
+
+    return( OUT )
   }
