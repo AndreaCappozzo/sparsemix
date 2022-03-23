@@ -103,6 +103,7 @@ fit_single_parameters_set <-
     itermax <- control_EM_algorithm$itermax
     tol <- control_EM_algorithm$tol
     err <- control_EM_algorithm$err
+    tol_zero_var <- control_EM_algorithm$tol_zero_var
 
     iter <- 0
     loglik_pen <- loglik_pen_prev <- -.Machine$integer.max / 2
@@ -193,7 +194,7 @@ fit_single_parameters_set <-
                                          rho = 2 * lambda_omega * P_k[, , k] / nk[k])
           }
 
-          if( any( diag(gl$w) < sqrt(.Machine$double.eps) ) ) {
+          if( any( diag(gl$w) < tol_zero_var ) ) {
             to_break <- TRUE
             break
           }
