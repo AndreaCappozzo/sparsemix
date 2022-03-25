@@ -32,7 +32,7 @@ fit_penalized_clust <-
            verbose = interactive()) {
     # Wrapper function for performing penalized MBC varying hyper-parameters
     # The best model is the one that maximizes the BIC
-
+    start_time <- Sys.time()
     # data <- data.matrix(scale(data))
     data <- data.matrix(data)
 
@@ -96,6 +96,8 @@ fit_penalized_clust <-
     selected_model <- models_container[[max_bic_model]]
     selected_model$BIC <- cbind(all_hyperparameters, bic=models_BICS)
 
+    end_time <- Sys.time()
+    selected_model$elapsed_time <- end_time - start_time
     if (verbose) {
       cat(
         "\nModel with K=",
