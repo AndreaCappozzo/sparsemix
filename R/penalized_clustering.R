@@ -33,7 +33,8 @@ fit_penalized_clust <-
     # Wrapper function for performing penalized MBC varying hyper-parameters
     # The best model is the one that maximizes the BIC
 
-    data <- data.matrix(scale(data)) # work with standardized data
+    # data <- data.matrix(scale(data))
+    data <- data.matrix(data) # work with standardized data
 
     N <- nrow(data)
     p <- ncol(data)
