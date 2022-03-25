@@ -34,7 +34,7 @@ fit_penalized_clust <-
     # The best model is the one that maximizes the BIC
 
     # data <- data.matrix(scale(data))
-    data <- data.matrix(data) # work with standardized data
+    data <- data.matrix(data)
 
     N <- nrow(data)
     p <- ncol(data)
