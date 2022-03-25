@@ -186,7 +186,7 @@ fit_single_parameters_set <-
 
           gl <- try(glassoFast::glassoFast(S = temp$S[,,k],
                                            rho = 2 * lambda_omega * P_k[, , k] / nk[k],
-                                           start = "warm",
+                                           # start = "warm",
                                            wi.init = omega[,,k],
                                            w.init = sigma[, , k]), silent = TRUE)
           if ( class(gl) == "try-error" | any(is.nan(gl$wi)) ) {
@@ -225,7 +225,7 @@ fit_single_parameters_set <-
             for (k in 1:K) {
               gl <- try(glassoFast::glassoFast(S = temp$S[,,k],
                                                rho = 2 * lambda_omega * P_k[, , k] / nk[k],
-                                               start = "warm",
+                                               # start = "warm",
                                                wi.init = omega[,,k],
                                                w.init = sigma[, , k]), silent = TRUE)
               if ( class(gl) == "try-error" | any(is.nan(gl$wi)) ) {
