@@ -3,10 +3,12 @@
 
 # sparsemix
 
-This repository is associated with the paper: Casa, Cappozzo, Fop (2022+)
-*Group-wise shrinkage estimation in penalized model-based clustering* [https://arxiv.org/abs/2105.07935](https://arxiv.org/abs/2105.07935). It
-provides an R package for implementing penalized model-based clustering
-with sparse mean vectors and precision matrices.
+This repository provides an R package for implementing penalized
+model-based clustering with sparse mean vectors and precision
+matrices.  
+It is associated with the paper: Casa, Cappozzo, Fop (2022) *Group-wise
+shrinkage estimation in penalized model-based clustering*.
+<https://link.springer.com/article/10.1007/s00357-022-09421-z>.
 
 ## Installation
 
